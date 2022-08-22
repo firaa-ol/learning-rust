@@ -52,6 +52,12 @@ pub fn divide(num1 : i32, num2 : i32) -> i32{
     
 }
 
+pub fn get_circle_area(radius : f64) -> f64{
+    let area : f64 = (radius * radius) * std::f64::consts::PI;
+
+    area
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
