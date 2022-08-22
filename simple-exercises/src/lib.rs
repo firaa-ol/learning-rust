@@ -10,7 +10,7 @@
     Reverse integer: 339874802
     Reverse integer: -43637
 */
-fn reverse_integer(number: i32) -> i32{
+pub fn reverse_integer(number: i32) -> i32{
     let mut num = number;
     let is_negative = num < 0;
     let mut res = 0;
@@ -34,7 +34,7 @@ fn reverse_integer(number: i32) -> i32{
 /*
  Write a program to divide two integers (dividend and divisor) without using multiplication, division and mod operator
  */
-fn divide(num1 : i32, num2 : i32) -> i32{
+pub fn divide(num1 : i32, num2 : i32) -> i32{
     let mut count : i32 = 0;
     let mut first_num = num1.abs();
     let second_num = num2.abs();
@@ -55,7 +55,7 @@ fn divide(num1 : i32, num2 : i32) -> i32{
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn reverse_integer_test() {
         assert_eq!(reverse_integer(123), 321);
