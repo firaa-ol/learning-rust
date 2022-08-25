@@ -58,6 +58,16 @@ pub fn get_circle_area(radius : f64) -> f64{
     area
 }
 
+pub fn get_quadratic_equation_roots(a: f64, b : f64, c: f64) -> Option<(f64, f64)> {
+    let discriminant = (b * b) - (4.0 * a * c);
+
+    if discriminant < 0.0 {
+        None
+    } else {
+        Some( ( (-1.0 * b + discriminant.sqrt()) / (2.0 * a),   ( - 1.0 * b - discriminant.sqrt()) / (2.0 * a)) )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
