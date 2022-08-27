@@ -1,8 +1,7 @@
 use std::env::args;
 use std::collections::HashMap;
-use std::io::{Error, Read};
-use std::fs::{write, OpenOptions};
-use std::str::FromStr;
+use std::io::{Error};
+use std::fs::{OpenOptions};
 
 fn main() {
     let action = args().nth(1).expect("please specify an action");
@@ -34,23 +33,20 @@ struct Todo {
 impl Todo {
 
     fn new() -> Result<Todo, Error> {
-        let mut f = OpenOptions::new()
+        let f = OpenOptions::new()
             .write(true)
             .create(true)
             .read(true)
-            .open("db.txt")?;
-
-        let mut content = String::new();
-        f.read_to_string(&mut content)?;
-
-        let map: HashMap<String, bool> = content
-            .lines()
-            .map(|line| line.splitn(2, '\t').collect::<Vec<&str>>())
-            .map(|v| (v[0], v[1]))
-            .map(|(k, v)| (String::from(k), bool::from_str(v).unwrap())  )
-            .collect();
-     
-        Ok(Todo {map})
+            .open("db.json")?;
+        
+        match serde_json::from_reader(f) {
+            Ok(map) => Ok(Todo { map }),
+            Err(e) if e.is_eof() => Ok(Todo {
+                map: HashMap::new()
+            }),
+            Err(e) => panic!("An error occurred: {}", e)
+        }
+        
     }
 
     fn insert(&mut self, key: String) {
@@ -59,14 +55,14 @@ impl Todo {
 
     // we are deliberately making save take ownership of the struct to
     // make sure save is the last action
-    fn save(self) -> Result<(), Error> {
-        let mut content = String::new();
-        for (k, v) in self.map {
-            let record = format!("{}\t{}\n", k, v);
-            content.push_str(&record);
-        }
+    fn save(self) -> Result<(), Box<dyn std::error::Error>> {
+        let f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open("db.json")?;
 
-        write("db.txt", content)
+        serde_json::to_writer_pretty(f, &self.map)?;
+        Ok(())
     }
 
     fn complete(&mut self, key: &String) -> Option<()> {
