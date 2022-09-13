@@ -1,4 +1,4 @@
-//TODO: add reverse method
+//TODO: make it iterable
 
 use std::fmt::Display;
 
@@ -45,6 +45,21 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
 
         elements
     }
+
+    fn rev(&self) -> SinglyLinkedList<T> {
+        let mut new_list = SinglyLinkedList::new();
+        if !self.start.is_none() {
+            let mut node = self.start.as_ref().unwrap();
+            new_list.push(node.value.clone());
+            while !node.next.is_none() {
+                node = node.next.as_ref().unwrap();
+                new_list.push(node.value.clone());
+            }
+        }
+
+        new_list
+    }
+
 }
 
 struct Node<T : Display + Clone>{
@@ -77,4 +92,17 @@ mod tests {
 
         assert_eq!(list2.to_string().as_str(), "hi,goodbye,hello,");
     }
+
+    #[test]
+    fn singly_linked_list_reverse_works() {
+        let mut list = SinglyLinkedList::new();
+        list.push(1);
+        list.push(2);
+        list.push(3);
+
+        let reversed_list = list.rev();
+        assert_eq!(list.to_string().as_str(), "3,2,1,");
+        assert_eq!(reversed_list.to_string().as_str(), "1,2,3,");
+    }
+
 }
