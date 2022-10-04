@@ -119,6 +119,54 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
         new_list
     }
 
+    // remove an element by index
+    fn remove(&mut self, index : u32) {
+
+        if index == 0 {
+            self.pop();
+        } else if index == self.size - 1 {
+            self.dequeue();
+        } else if index > self.size - 1{
+            panic!("Index out of Range");
+        } else {
+            let mut counter = 0;
+            let mut node = self.start.as_mut().unwrap();
+            while !node.next.is_none() {
+                if counter + 1 == index {
+                    node.next = node.next.as_mut().unwrap().next.take();
+                    break;
+                }
+                node = node.next.as_mut().unwrap();
+                counter += 1;
+            }
+
+            self.size -= 1;
+        }
+    }
+
+    // insert at an index
+    fn insert(&mut self, elt: T, index: u32) {
+        if index == 0 {
+            self.push(elt);
+        } else if index > self.size - 1 {
+            self.enqueue(elt);
+        } else {
+            let mut counter = 0;
+            let mut node = self.start.as_mut().unwrap();
+            while !node.next.is_none() {
+                if counter  + 1 == index {
+                    node.next = Some(Box::new(Node { value: elt, next: node.next.take() }));
+                    break;
+                }
+
+                node = node.next.as_mut().unwrap();
+                counter += 1;
+            }
+
+            self.size += 1;
+        }
+    }
+
 }
 
 struct Node<T : Display + Clone>{
@@ -179,6 +227,48 @@ mod tests {
 
         assert_eq!(list.size, 3);
         assert_eq!(list.to_string(), "10,23,345,");
+    }
+
+    #[test]
+    fn singly_linked_list_remove_works() {
+        let mut list = SinglyLinkedList::new();
+        list.enqueue(1);
+        list.enqueue(1);
+        list.enqueue(2);
+        list.enqueue(3);
+        list.enqueue(5);
+        list.enqueue(8);
+        list.enqueue(13);
+
+        assert_eq!(list.to_string(), "1,1,2,3,5,8,13,");
+        list.remove(4);
+        assert_eq!(list.to_string(), "1,1,2,3,8,13,");
+        list.remove(2);
+        assert_eq!(list.to_string(), "1,1,3,8,13,");
+        list.remove(0);
+        assert_eq!(list.to_string(), "1,3,8,13,");
+        list.remove(3);
+        assert_eq!(list.to_string(), "1,3,8,");
+        list.remove(1);
+        assert_eq!(list.to_string(), "1,8,");
+    }
+
+    #[test]
+    fn singly_linked_list_insert_works() {
+        let mut list = SinglyLinkedList::new();
+        list.enqueue(20);
+        list.enqueue(22);
+        list.enqueue(24);
+
+        assert_eq!(list.to_string(), "20,22,24,");
+        list.insert(21, 1);
+        assert_eq!(list.to_string(), "20,21,22,24,");
+        list.insert(23, 3);
+        assert_eq!(list.to_string(), "20,21,22,23,24,");
+        list.insert(19, 0);
+        assert_eq!(list.to_string(), "19,20,21,22,23,24,");
+        list.insert(25, 6);
+        assert_eq!(list.to_string(), "19,20,21,22,23,24,25,");
     }
 
 }
