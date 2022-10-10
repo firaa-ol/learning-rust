@@ -9,6 +9,6 @@ Applied Concepts
 - Drop Trait
 
 Next Steps
-- [] Better Error Handling
-- [] Serve Content from a Directory
-- [] Handle HTTPS requests
+- [ ] Better Error Handling
+- [ ] Serve Content from a Directory
+- [ ] Handle HTTPS requests
