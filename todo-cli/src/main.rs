@@ -1,26 +1,57 @@
-use std::env::args;
 use std::collections::HashMap;
 use std::io::{Error};
 use std::fs::{OpenOptions};
+use clap::{Parser, Subcommand}; 
+
+#[derive(Parser)]
+struct Args {
+    #[clap(subcommand)]
+    command: Action
+}
+
+#[derive(Subcommand)]
+enum Action {
+    /// Add a new todo item
+    Add {
+        /// name of the todo item to add
+        item: String
+    },
+    /// Complete a given todo item
+    Complete {
+        /// name of the todo item to complete
+        item: String
+    },
+    /// List todo items
+    List 
+}
 
 fn main() {
-    let action = args().nth(1).expect("please specify an action");
-    let item = args().nth(2).expect("please specify an item");
+    let args = Args::parse();
 
     let mut todo = Todo::new().expect("Initialization of db failed");
 
-    if action == "add" {
-        todo.insert(item);
-        match todo.save() {
-            Ok(_) => println!("todo saved"),
-            Err(why) => println!("An error occurred: {}", why)
-        }
-    } else if action == "complete" {
-        match todo.complete(&item) {
-            None => println!("'{}' is not present in the list", item),
-            Some(_) => match todo.save() {
+    match args.command {
+        Action::Add { item } => {
+            todo.insert(item);
+            match todo.save() {
                 Ok(_) => println!("todo saved"),
                 Err(why) => println!("An error occurred: {}", why)
+            }
+        },
+        Action::Complete { item } => {
+            match todo.complete(&item) {
+                None => println!("'{}' is not present in the list", item),
+                Some(_) => match todo.save() {
+                    Ok(_) => println!("todo saved"),
+                    Err(why) => println!("An error occurred: {}", why)
+                }
+            }
+        },
+        Action::List => {
+            println!("Item\t\t\tStatus");
+            for(item, status) in &todo.map {
+                let status = if *status { "Pending" } else { "Done" };
+                println!("{item}\t\t{status}");
             }
         }
     }
