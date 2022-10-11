@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{Error};
 use std::fs::{OpenOptions};
 use clap::{Parser, Subcommand}; 
+use prettytable::{row, Table};
 
 #[derive(Parser)]
 struct Args {
@@ -48,10 +49,18 @@ fn main() {
             }
         },
         Action::List => {
-            println!("Item\t\t\tStatus");
+            let mut table = Table::new();
+            table.set_titles(row!["Item", "Status"]);
+
             for(item, status) in &todo.map {
                 let status = if *status { "Pending" } else { "Done" };
-                println!("{item}\t\t{status}");
+                table.add_row(row![item, status]);
+            }
+
+            if table.is_empty() {
+                println!("No Todo Items.");
+            } else {
+                println!("{}", table);
             }
         }
     }
