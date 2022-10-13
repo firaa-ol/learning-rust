@@ -1,8 +1,11 @@
 use std::collections::HashMap;
-use std::io::{Error};
+//use std::io::{Error};
 use std::fs::{OpenOptions};
 use clap::{Parser, Subcommand}; 
 use prettytable::{row, Table};
+
+pub mod error;
+use error::{Result, Error};
 
 #[derive(Parser)]
 struct Args {
@@ -29,39 +32,23 @@ enum Action {
 fn main() {
     let args = Args::parse();
 
+    if let Err(err) = handle_actions(args) {
+        println!("{}", err);
+    };
+}
+
+fn handle_actions(args: Args) -> Result<()> {
     let mut todo = Todo::new().expect("Initialization of db failed");
 
     match args.command {
         Action::Add { item } => {
-            todo.insert(item);
-            match todo.save() {
-                Ok(_) => println!("todo saved"),
-                Err(why) => println!("An error occurred: {}", why)
-            }
+            todo.insert(item)
         },
         Action::Complete { item } => {
-            match todo.complete(&item) {
-                None => println!("'{}' is not present in the list", item),
-                Some(_) => match todo.save() {
-                    Ok(_) => println!("todo saved"),
-                    Err(why) => println!("An error occurred: {}", why)
-                }
-            }
+            todo.complete(&item)
         },
         Action::List => {
-            let mut table = Table::new();
-            table.set_titles(row!["Item", "Status"]);
-
-            for(item, status) in &todo.map {
-                let status = if *status { "Pending" } else { "Done" };
-                table.add_row(row![item, status]);
-            }
-
-            if table.is_empty() {
-                println!("No Todo Items.");
-            } else {
-                println!("{}", table);
-            }
+            todo.list()
         }
     }
 }
@@ -72,12 +59,12 @@ struct Todo {
 
 impl Todo {
 
-    fn new() -> Result<Todo, Error> {
+    fn new() -> Result<Todo> {
         let f = OpenOptions::new()
             .write(true)
             .create(true)
             .read(true)
-            .open("db.json")?;
+            .open("db.json").map_err(|e| Error::DbInitFailed(e))?;
         
         match serde_json::from_reader(f) {
             Ok(map) => Ok(Todo { map }),
@@ -89,27 +76,48 @@ impl Todo {
         
     }
 
-    fn insert(&mut self, key: String) {
+    fn insert(&mut self, key: String) -> Result<()>{
         self.map.insert(key, true);
+        self.save()
     }
 
-    // we are deliberately making save take ownership of the struct to
-    // make sure save is the last action
-    fn save(self) -> Result<(), Box<dyn std::error::Error>> {
+    fn save(&self) -> Result<()> {
         let f = OpenOptions::new()
             .write(true)
             .create(true)
             .open("db.json")?;
 
         serde_json::to_writer_pretty(f, &self.map)?;
+        println!("list updated");
         Ok(())
     }
 
-    fn complete(&mut self, key: &String) -> Option<()> {
+    fn complete(&mut self, key: &String) -> Result<()> {
         match self.map.get_mut(key) {
-            Some(v) => Some(*v = false),
-            None => None
+            Some(v) =>  { 
+                *v = false; 
+                self.save()
+            },
+            None => Err(Error::ToDoItemNotFound(key.to_string()))
         }
+    }
+
+    fn list(&self) -> Result <()> {
+        let mut table = Table::new();
+        table.set_titles(row!["Item", "Status"]);
+
+        for(item, status) in &self.map {
+            let status = if *status { "Pending" } else { "Done" };
+            table.add_row(row![item, status]);
+        }
+
+        if table.is_empty() {
+            println!("No Todo Items.");
+            return Err(Error::EmptyToDos);
+        } 
+
+        println!("{}", table);
+        Ok(())
     }
 
 }
