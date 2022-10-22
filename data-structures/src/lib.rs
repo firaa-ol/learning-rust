@@ -167,11 +167,50 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
         }
     }
 
+    fn iter(&self) -> NodeIter<'_, T> {
+        NodeIter { next: self.start.as_deref() }
+    }
+
+    fn iter_mut(&mut self) -> NodeIterMut<'_, T> {
+        NodeIterMut { next: self.start.as_deref_mut() }
+    }
+
 }
 
 struct Node<T : Display + Clone>{
     value: T,
     next: Option<Box<Node<T>>>
+}
+
+struct NodeIter<'a, T : Display + Clone> {
+    next: Option<&'a Node<T>>
+}
+
+impl<'a, T : Display + Clone> Iterator for NodeIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.map(|node| {
+            self.next = node.next.as_deref();
+            &node.value
+        })
+    }
+}
+
+
+struct NodeIterMut<'a, T: Display + Clone> {
+    next: Option<&'a mut Node<T>>
+}
+
+impl<'a, T : Display + Clone> Iterator for NodeIterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.take().map(|node| {
+            self.next = node.next.as_deref_mut();
+            &mut node.value
+        })
+    }
 }
 
 #[cfg(test)]
@@ -269,6 +308,30 @@ mod tests {
         assert_eq!(list.to_string(), "19,20,21,22,23,24,");
         list.insert(25, 6);
         assert_eq!(list.to_string(), "19,20,21,22,23,24,25,");
+    }
+
+    #[test]
+    fn iterator_works() {
+        let mut list = SinglyLinkedList::new();
+        list.push(20);
+        list.push(30);
+        list.push(40);
+
+        assert_eq!(list.iter().sum::<i32>(), 90);
+    }
+
+    #[test]
+    fn mutable_iterator_works() {
+        let mut list = SinglyLinkedList::new();
+        list.push(20);
+        list.push(30);
+        list.push(40);
+
+        let mut iter = list.iter_mut();
+        assert_eq!(iter.next(), Some(&mut 40));
+        assert_eq!(iter.next(), Some(&mut 30));
+        assert_eq!(iter.next(), Some(&mut 20));
+        assert_eq!(iter.next(), None);
     }
 
 }
