@@ -2,25 +2,31 @@
 
 use std::fmt::Display;
 
-struct SinglyLinkedList<T : Display + Clone> {
+struct SinglyLinkedList<T: Display + Clone> {
     start: Option<Box<Node<T>>>,
-    size: u32
+    size: u32,
 }
 
-impl<T : Display + Clone> SinglyLinkedList<T> {
-    fn new() -> Self{
+impl<T: Display + Clone> SinglyLinkedList<T> {
+    fn new() -> Self {
         Self {
             start: None,
-            size: 0
+            size: 0,
         }
     }
 
     // push to the front of the list
     fn push(&mut self, elt: T) {
         if self.start.is_none() {
-            self.start = Some(Box::new(Node {value: elt, next: None}));
+            self.start = Some(Box::new(Node {
+                value: elt,
+                next: None,
+            }));
         } else {
-            let new_node = Some(Box::new(Node {value: elt, next: self.start.take() }));
+            let new_node = Some(Box::new(Node {
+                value: elt,
+                next: self.start.take(),
+            }));
             self.start = new_node;
         }
         self.size += 1;
@@ -42,9 +48,15 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
     fn enqueue(&mut self, elt: T) {
         let last_node = self.get_last_element();
         if last_node.is_none() {
-            self.start = Some(Box::new(Node {value: elt, next: None}));
+            self.start = Some(Box::new(Node {
+                value: elt,
+                next: None,
+            }));
         } else {
-            last_node.unwrap().next = Some(Box::new(Node {value: elt, next: None}));
+            last_node.unwrap().next = Some(Box::new(Node {
+                value: elt,
+                next: None,
+            }));
         }
         self.size += 1;
     }
@@ -55,7 +67,7 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
             None
         } else {
             self.size -= 1;
-            let before_last_node = self.get_before_last_element();          
+            let before_last_node = self.get_before_last_element();
             Some(before_last_node.unwrap().next.take().unwrap().value)
         }
     }
@@ -80,7 +92,7 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
         } else {
             let mut node = self.start.as_mut().unwrap();
             while !node.next.is_none() {
-                if node.next.as_ref().unwrap().next.is_none(){
+                if node.next.as_ref().unwrap().next.is_none() {
                     break;
                 }
 
@@ -120,13 +132,12 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
     }
 
     // remove an element by index
-    fn remove(&mut self, index : u32) {
-
+    fn remove(&mut self, index: u32) {
         if index == 0 {
             self.pop();
         } else if index == self.size - 1 {
             self.dequeue();
-        } else if index > self.size - 1{
+        } else if index > self.size - 1 {
             panic!("Index out of Range");
         } else {
             let mut counter = 0;
@@ -154,8 +165,11 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
             let mut counter = 0;
             let mut node = self.start.as_mut().unwrap();
             while !node.next.is_none() {
-                if counter  + 1 == index {
-                    node.next = Some(Box::new(Node { value: elt, next: node.next.take() }));
+                if counter + 1 == index {
+                    node.next = Some(Box::new(Node {
+                        value: elt,
+                        next: node.next.take(),
+                    }));
                     break;
                 }
 
@@ -168,25 +182,28 @@ impl<T : Display + Clone> SinglyLinkedList<T> {
     }
 
     fn iter(&self) -> NodeIter<'_, T> {
-        NodeIter { next: self.start.as_deref() }
+        NodeIter {
+            next: self.start.as_deref(),
+        }
     }
 
     fn iter_mut(&mut self) -> NodeIterMut<'_, T> {
-        NodeIterMut { next: self.start.as_deref_mut() }
+        NodeIterMut {
+            next: self.start.as_deref_mut(),
+        }
     }
-
 }
 
-struct Node<T : Display + Clone>{
+struct Node<T: Display + Clone> {
     value: T,
-    next: Option<Box<Node<T>>>
+    next: Option<Box<Node<T>>>,
 }
 
-struct NodeIter<'a, T : Display + Clone> {
-    next: Option<&'a Node<T>>
+struct NodeIter<'a, T: Display + Clone> {
+    next: Option<&'a Node<T>>,
 }
 
-impl<'a, T : Display + Clone> Iterator for NodeIter<'a, T> {
+impl<'a, T: Display + Clone> Iterator for NodeIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -197,12 +214,11 @@ impl<'a, T : Display + Clone> Iterator for NodeIter<'a, T> {
     }
 }
 
-
 struct NodeIterMut<'a, T: Display + Clone> {
-    next: Option<&'a mut Node<T>>
+    next: Option<&'a mut Node<T>>,
 }
 
-impl<'a, T : Display + Clone> Iterator for NodeIterMut<'a, T> {
+impl<'a, T: Display + Clone> Iterator for NodeIterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -333,5 +349,4 @@ mod tests {
         assert_eq!(iter.next(), Some(&mut 20));
         assert_eq!(iter.next(), None);
     }
-
 }
