@@ -1,15 +1,15 @@
 use std::{
     fs,
     io::{prelude::*, BufReader},
-    net::{TcpListener, TcpStream },
-    thread,
+    net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, Mutex},
-    time::Duration
+    thread,
+    time::Duration,
 };
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>
+    sender: Option<mpsc::Sender<Job>>,
 }
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
@@ -28,11 +28,15 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender: Some(sender) }
+        ThreadPool {
+            workers,
+            sender: Some(sender),
+        }
     }
 
     pub fn execute<F>(&self, f: F)
-     where F : FnOnce() + Send + 'static
+    where
+        F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
         self.sender.as_ref().unwrap().send(job).unwrap();
@@ -55,18 +59,17 @@ impl Drop for ThreadPool {
 
 struct Worker {
     id: usize,
-    thread : Option<thread::JoinHandle<()>>
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-
             match receiver.lock().unwrap().recv() {
                 Ok(job) => {
                     println!("Worker {id} got a job; executing.");
                     job();
-                },
+                }
                 Err(_) => {
                     println!("Worker {id} disconnected; shutting down.");
                     break;
@@ -74,7 +77,10 @@ impl Worker {
             }
         });
 
-        Worker { id, thread : Some(thread) }
+        Worker {
+            id,
+            thread: Some(thread),
+        }
     }
 }
 
@@ -95,10 +101,11 @@ fn main() {
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
-    let http_request : Vec<_> = buf_reader.lines()
-                                .map(|res| res.unwrap())
-                                .take_while(|line| !line.is_empty())
-                                .collect();
+    let http_request: Vec<_> = buf_reader
+        .lines()
+        .map(|res| res.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect();
 
     println!("Request: {:#?}", http_request);
 
@@ -109,13 +116,13 @@ fn handle_connection(mut stream: TcpStream) {
         "GET /sleep HTTP/1.1" => {
             thread::sleep(Duration::from_secs(5));
             ("HTTP/1.1 200 OK", "hello.html")
-        },
-        _ => ("HTTP/1.1 404 NOT FOUND", "404.html")
-    };    
+        }
+        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
+    };
 
     let contents = fs::read_to_string(filename).unwrap();
     let length = contents.len();
     let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
-    stream.write_all(response.as_bytes()).unwrap();  
+    stream.write_all(response.as_bytes()).unwrap();
 }
