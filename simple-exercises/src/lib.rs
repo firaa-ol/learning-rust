@@ -10,7 +10,7 @@
     Reverse integer: 339874802
     Reverse integer: -43637
 */
-pub fn reverse_integer(number: i32) -> i32{
+pub fn reverse_integer(number: i32) -> i32 {
     let mut num = number;
     let is_negative = num < 0;
     let mut res = 0;
@@ -32,10 +32,10 @@ pub fn reverse_integer(number: i32) -> i32{
 }
 
 /*
- Write a program to divide two integers (dividend and divisor) without using multiplication, division and mod operator
- */
-pub fn divide(num1 : i32, num2 : i32) -> i32{
-    let mut count : i32 = 0;
+Write a program to divide two integers (dividend and divisor) without using multiplication, division and mod operator
+*/
+pub fn divide(num1: i32, num2: i32) -> i32 {
+    let mut count: i32 = 0;
     let mut first_num = num1.abs();
     let second_num = num2.abs();
 
@@ -49,22 +49,24 @@ pub fn divide(num1 : i32, num2 : i32) -> i32{
     } else {
         count
     }
-    
 }
 
-pub fn get_circle_area(radius : f64) -> f64{
-    let area : f64 = (radius * radius) * std::f64::consts::PI;
+pub fn get_circle_area(radius: f64) -> f64 {
+    let area: f64 = (radius * radius) * std::f64::consts::PI;
 
     area
 }
 
-pub fn get_quadratic_equation_roots(a: f64, b : f64, c: f64) -> Option<(f64, f64)> {
+pub fn get_quadratic_equation_roots(a: f64, b: f64, c: f64) -> Option<(f64, f64)> {
     let discriminant = (b * b) - (4.0 * a * c);
 
     if discriminant < 0.0 {
         None
     } else {
-        Some( ( (-1.0 * b + discriminant.sqrt()) / (2.0 * a),   ( - 1.0 * b - discriminant.sqrt()) / (2.0 * a)) )
+        Some((
+            (-1.0 * b + discriminant.sqrt()) / (2.0 * a),
+            (-1.0 * b - discriminant.sqrt()) / (2.0 * a),
+        ))
     }
 }
 
