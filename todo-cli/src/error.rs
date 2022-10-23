@@ -2,7 +2,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-
     #[error("Initialization of database failed : {0}")]
     DbInitFailed(std::io::Error),
 
@@ -16,7 +15,7 @@ pub enum Error {
     ToDoItemNotFound(String),
 
     #[error("No Todo Items")]
-    EmptyToDos
+    EmptyToDos,
 }
 
 impl From<std::io::Error> for Error {
