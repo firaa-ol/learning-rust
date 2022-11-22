@@ -1,0 +1,369 @@
+use std::collections::HashMap;
+
+mod add;
+
+pub use add::Add;
+
+#[derive(Debug, PartialEq)]
+#[repr(u32)]
+pub enum MetaType {
+    None = 0,
+    String = (1 << 16),
+    Uint = (1 << 17),
+    Raw = (1 << 18),
+    Bool = (1 << 19),
+    Qword = (1 << 20),
+    Compressed = (1 << 29),
+    Group = (1 << 30),
+    Complex = (1 << 31),
+    All = MetaType::None as u32
+        | MetaType::String as u32
+        | MetaType::Uint as u32
+        | MetaType::Raw as u32
+        | MetaType::Bool as u32
+        | MetaType::Qword as u32
+        | MetaType::Compressed as u32
+        | MetaType::Group as u32
+        | MetaType::Complex as u32,
+}
+
+pub const STDAPI_PLUGIN: u32 = 0;
+
+#[derive(PartialEq, Eq, Hash, Debug, Copy, Clone)]
+#[repr(u32)]
+pub enum TlvType {
+    // General/Base Type Tlvs
+    Any = MetaType::None as u32,
+    Method = MetaType::String as u32 | 1,
+    RequestId = MetaType::String as u32 | 2,
+    Exception = MetaType::Group as u32 | 3,
+    Result = MetaType::Uint as u32 | 4,
+    String = MetaType::String as u32 | 10,
+    Uint = MetaType::Uint as u32 | 11,
+    Bool = MetaType::Bool as u32 | 12,
+    Length = MetaType::Uint as u32 | 25,
+    Data = MetaType::Raw as u32 | 26,
+    Flags = MetaType::Uint as u32 | 27,
+    // Channel TLVs
+    ChannelId = MetaType::Uint as u32 | 50,
+    ChannelType = MetaType::String as u32 | 51,
+    ChannelData = MetaType::Raw as u32 | 52,
+    ChannelDataGroup = MetaType::Group as u32 | 53,
+    ChannelClass = MetaType::Uint as u32 | 54,
+    ChannelParentId = MetaType::Uint as u32 | 55,
+    // File seeking TLVs
+    SeekWhence = MetaType::Uint as u32 | 70,
+    SeekOffset = MetaType::Uint as u32 | 71,
+    SeekPos = MetaType::Uint as u32 | 72,
+    // Exception/error TLVs
+    ExceptionCode = MetaType::Uint as u32 | 300,
+    ExceptionString = MetaType::String as u32 | 301,
+    // Migration TLVs
+    LibraryPath = MetaType::String as u32 | 400,
+    TargetPath = MetaType::String as u32 | 401,
+    MigratePid = MetaType::Uint as u32 | 402,
+    MigratePayloadLen = MetaType::Uint as u32 | 403,
+    MigratePayload = MetaType::String as u32 | 404,
+    MigrateArch = MetaType::Uint as u32 | 405,
+    MigrateBaseAddr = MetaType::Uint as u32 | 407,
+    MigrateEntryPoint = MetaType::Uint as u32 | 408,
+    MigrateSocketPath = MetaType::Uint as u32 | 409,
+    MigrateStubLen = MetaType::Uint as u32 | 410,
+    MigrateStub = MetaType::Uint as u32 | 411,
+    // Transport TLVs
+    TransType = MetaType::Uint as u32 | 430,
+    TransUrl = MetaType::String as u32 | 431,
+    TransUa = MetaType::String as u32 | 432,
+    TransCommTimeout = MetaType::Uint as u32 | 433,
+    TransSessExp = MetaType::Uint as u32 | 434,
+    TransCertHash = MetaType::Raw as u32 | 435,
+    TransProxyHost = MetaType::String as u32 | 436,
+    TransProxyUser = MetaType::String as u32 | 437,
+    TransProxyPass = MetaType::String as u32 | 438,
+    TransRetryTotal = MetaType::Uint as u32 | 439,
+    TransRetryWait = MetaType::Uint as u32 | 440,
+    TransHeaders = MetaType::String as u32 | 441,
+    TransGroup = MetaType::Group as u32 | 442,
+    // Identification/session TLVs
+    MachineId = MetaType::String as u32 | 460,
+    UUID = MetaType::Raw as u32 | 461,
+    SessionGuid = MetaType::Raw as u32 | 462,
+    // Packet encryption TLVs
+    RsaPubKey = MetaType::String as u32 | 550,
+    SymKeyType = MetaType::Uint as u32 | 551,
+    SymKey = MetaType::Raw as u32 | 552,
+    EncSymKey = MetaType::Raw as u32 | 553,
+    // Pivot TLVs
+    PivotId = MetaType::Raw as u32 | 650,
+    PivotStageData = MetaType::Raw as u32 | 651,
+    PivotStageDataLen = MetaType::Uint as u32 | 652,
+    PivotNamedPipeName = MetaType::String as u32 | 653,
+    // STDAPI stuff
+    StdapiComputerName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1040),
+    StdapiOperatingSystemName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1041),
+    StdapiUserName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1042),
+    StdapiArchitecture = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1043),
+    StdapiLangSystem = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1044),
+    StdapiSid = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1045),
+    StdapiDomain = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1046),
+    StdapiLoggedOnUserCount = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1047),
+    StdapiLocalDateTime = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1048),
+    StdapiEnvVariable = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1100),
+    StdapiEnvValue = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1101),
+    StdapiEnvGroup = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1102),
+    StdapiDirectoryPath = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1200),
+    StdapiFileName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1201),
+    StdapiFilePath = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1202),
+    StdapiFileMode = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1203),
+    StdapiFileSize = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1204),
+    StdapiFileShortName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1205),
+    StdapiFileHash = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1206),
+    StdapiMount = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1207),
+    StdapiMountName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1208),
+    StdapiMountType = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1209),
+    StdapiMountSpaceUser = MetaType::Qword as u32 | (STDAPI_PLUGIN as u32 + 1210),
+    StdapiMountSpaceTotal = MetaType::Qword as u32 | (STDAPI_PLUGIN as u32 + 1211),
+    StdapiMountSpaceFree = MetaType::Qword as u32 | (STDAPI_PLUGIN as u32 + 1212),
+    StdapiMountUncPath = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1213),
+    StdapiStatBuf32 = MetaType::Complex as u32 | (STDAPI_PLUGIN as u32 + 1220),
+    StdapiStatBuf = MetaType::Complex as u32 | (STDAPI_PLUGIN as u32 + 1221),
+    StdapiInterfaceMtu = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1402),
+    StdapiInterfaceFlags = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1403),
+    StdapiInterfaceIndex = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1404),
+    StdapiSubnet = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1420),
+    StdapiNetmask = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1421),
+    StdapiGateway = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1422),
+    StdapiNetworkRoute = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1423),
+    StdapiIpPrefix = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1424),
+    StdapiArpEntry = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1425),
+    StdapiIp = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1430),
+    StdapiMacAddr = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1431),
+    StdapiMacName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1432),
+    StdapiNetworkInterface = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1433),
+    StdapiIp6Scope = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1434),
+    StdapiSubnetString = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1440),
+    StdapiNetmaskString = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1441),
+    StdapiGatewayString = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1442),
+    StdapiRouteMetric = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1443),
+    StdapiAddrType = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1444),
+    StdapiProxyCfgAutodetect = MetaType::Bool as u32 | (STDAPI_PLUGIN as u32 + 1445),
+    StdapiProxyCfgAutoConfigUrL = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1446),
+    StdapiProxyCfgProxy = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1447),
+    StdapiProxyCfgProxyBypass = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1448),
+    StdapiPeerHost = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1500),
+    StdapiPeerPort = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1501),
+    StdapiLocalHost = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 1502),
+    StdapiLocalPort = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1503),
+    StdapiConnectRetries = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1504),
+    StdapiNetstatEntry = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 1505),
+    StdapiPeerHostRaw = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1506),
+    StdapiLocalHostRaw = MetaType::Raw as u32 | (STDAPI_PLUGIN as u32 + 1507),
+    StdapiShutdownHow = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 1530),
+    StdapiProcessId = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 2300),
+    StdapiProcessName = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 2301),
+    StdapiProcessPath = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 2302),
+    StdapiProcessGroup = MetaType::Group as u32 | (STDAPI_PLUGIN as u32 + 2303),
+    StdapiProcessFlags = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 2304),
+    StdapiProcessArguments = MetaType::String as u32 | (STDAPI_PLUGIN as u32 + 2305),
+    StdapiProcessArch = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 2306),
+    StdapiProcessParentProcessId = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 2307),
+    StdapiProcessSession = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 2308),
+    StdapiPowerFlags = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 4100),
+    StdapiPowerReason = MetaType::Uint as u32 | (STDAPI_PLUGIN as u32 + 4101),
+}
+
+impl TlvType {
+    fn to_meta_type(&self) -> MetaType {
+        let val = MetaType::All as u32 & *self as u32;
+        //TODO: find a better way without unsafe
+        let meta_type: MetaType = unsafe { ::std::mem::transmute(val) };
+        meta_type
+    }
+}
+
+pub enum TlvValue {
+    Bool(bool),
+    UInt(u32),
+    ULongInt(u64),
+    String(String),
+    Bytes(Box<[u8]>),
+}
+
+pub struct Tlv {
+    pub value: Option<TlvValue>,
+    pub tlv_type: TlvType,
+    pub tlvs: HashMap<TlvType, Vec<Tlv>>,
+}
+
+impl Tlv {
+    pub fn new(tlv_type: TlvType, value: TlvValue) -> Tlv {
+        Self {
+            tlv_type,
+            value: Some(value),
+            tlvs: HashMap::new(),
+        }
+    }
+
+    fn from_raw(&self){
+        unimplemented!()
+    }
+
+    fn to_raw(&self){
+        unimplemented!()
+    }
+
+    fn validate_meta_type(&self, expected_types: Vec<MetaType>){
+        if !expected_types.contains(&self.tlv_type.to_meta_type()) {
+            panic!("Expecting MetaType {:?} but provided type {:?}", expected_types, &self.tlv_type);
+        }
+    }
+
+    pub fn value_as_string(&self) -> String {
+        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+            TlvValue::String(val) => val.to_string(),
+            _ => panic!("Didn't find expected type") 
+        }
+    }
+
+    pub fn value_as_bool(&self) -> bool {
+        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+            TlvValue::Bool(val) => val.to_owned(),
+            _ => panic!("Didn't find expected type") 
+        }       
+    }
+
+    pub fn value_as_uint32(&self) -> u32 {
+        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+            TlvValue::UInt(val) => val.to_owned(),
+            _ => panic!("Didn't find expected type") 
+        }       
+    }
+
+    pub fn value_as_uint64(&self) -> u64 {
+        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+            TlvValue::ULongInt(val) => val.to_owned(),
+            _ => panic!("Didn't find expected type") 
+        }       
+    }
+
+    pub fn value_as_bytes(&self) -> &Box<[u8]> {
+        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+            TlvValue::Bytes(val) => val,
+            _ => panic!("Didn't find expected type") 
+        }       
+    }
+    
+}
+//TODO: pass byte array by reference or boxed
+//TODO: metatype validation
+impl Add for Tlv {
+    fn add_string(&mut self, tlv_type: TlvType, value: String) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Tlv::new(tlv_type, TlvValue::String(value));
+        self.add_tlv(tlv);
+    }
+
+    fn add_uint32(&mut self, tlv_type: TlvType, value: u32) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Tlv::new(tlv_type, TlvValue::UInt(value));
+        self.add_tlv(tlv);
+    }
+
+    fn add_uint64(&mut self, tlv_type: TlvType, value: u64) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Tlv::new(tlv_type, TlvValue::ULongInt(value));
+        self.add_tlv(tlv);
+    }
+
+    fn add_bool(&mut self, tlv_type: TlvType, value: bool) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Tlv::new(tlv_type, TlvValue::Bool(value));
+        self.add_tlv(tlv);
+    }
+
+    fn add_bytes(&mut self, tlv_type: TlvType, value: Box<[u8]>) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Tlv::new(tlv_type, TlvValue::Bytes(value));
+        self.add_tlv(tlv);
+    }
+
+    fn add_group(&mut self, tlv_type: TlvType) {
+        self.validate_meta_type(vec![MetaType::Group]);
+        let tlv = Self {
+            tlv_type,
+            value: None,
+            tlvs: HashMap::new(),
+        };
+        self.add_tlv(tlv);
+    }
+
+    fn add_tlv(&mut self, tlv: Tlv) {
+        if let Some(tlv_list) = self.tlvs.get_mut(&tlv.tlv_type) {
+            tlv_list.push(tlv);
+        } else {
+            self.tlvs.insert(tlv.tlv_type.clone(), vec![tlv]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+    use crate::tlv::{TlvType, MetaType, TlvValue, Tlv};
+
+    use super::Add;
+
+
+    #[test]
+    fn test_tlvtype_to_metatype() {
+        assert_eq!(TlvType::Any.to_meta_type(), MetaType::None);
+        assert_eq!(TlvType::Method.to_meta_type(), MetaType::String);
+        assert_eq!(TlvType::StdapiMountSpaceTotal.to_meta_type(), MetaType::Qword);
+    }
+
+    #[test]
+    fn test_value_as_string() {
+        let tlv = Tlv::new(TlvType::ChannelType, TlvValue::String(String::from("OneWay")));
+        assert_eq!(tlv.value_as_string(), "OneWay");
+    }
+
+    #[test]
+    fn test_value_as_uint32() {
+        let tlv = Tlv::new(TlvType::ChannelId, TlvValue::UInt(2));
+        assert_eq!(tlv.value_as_uint32(), 2);
+    }
+
+    #[test]
+    fn test_value_as_uint64() {
+        let tlv = Tlv::new(TlvType::StdapiMountSpaceFree, TlvValue::ULongInt(624636823236762));
+        assert_eq!(tlv.value_as_uint64(), 624636823236762);
+    }
+
+    #[test]
+    fn test_value_as_bool() {
+        let tlv = Tlv::new(TlvType::StdapiProxyCfgAutodetect, TlvValue::Bool(true));
+        assert_eq!(tlv.value_as_bool(), true);
+    }
+
+    #[test]
+    fn test_value_as_bytes() {
+        let tlv = Tlv::new(TlvType::ChannelData, TlvValue::Bytes(Box::new([35, 67, 0, 255])));
+        let byte_val = tlv.value_as_bytes().as_ref();
+        assert_eq!(byte_val[0], 35);
+        assert_eq!(byte_val[1], 67);
+        assert_eq!(byte_val[2], 0);
+        assert_eq!(byte_val[3], 255);
+    }
+
+    #[test]
+    fn test_add() {
+        let mut tlv = Tlv { tlv_type : TlvType::StdapiMount, value: None, tlvs : HashMap::new() };
+        tlv.add_string(TlvType::StdapiMountName, String::from("/sdf"));
+        tlv.add_uint32(TlvType::StdapiMountType, 2);
+        tlv.add_uint64(TlvType::StdapiMountSpaceFree, 2614672732);
+
+        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountName).unwrap().first().unwrap().value_as_string(), "/sdf");
+        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountType).unwrap().first().unwrap().value_as_uint32(), 2);
+        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountSpaceFree).unwrap().first().unwrap().value_as_uint64(), 2614672732);
+    }
+}
