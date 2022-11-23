@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
 mod add;
+mod binary_writer;
 
 pub use add::Add;
+
+use self::binary_writer::BinaryWriter;
 
 #[derive(Debug, PartialEq)]
 #[repr(u32)]
@@ -204,55 +207,121 @@ impl Tlv {
         }
     }
 
-    fn from_raw(&self){
+    fn from_raw(&self) {
         unimplemented!()
     }
 
-    fn to_raw(&self){
-        unimplemented!()
+    fn to_raw(&self, storage: &mut Vec<u8>) {
+        let meta_type = self.tlv_type.to_meta_type();
+        if meta_type == MetaType::Group {
+            let mut tlv_group_data: Vec<u8> = vec![];
+            for tlv in self.tlvs.values().flatten() {
+                tlv.to_raw(&mut tlv_group_data);
+            }
+
+            BinaryWriter::write_dword(storage, tlv_group_data.len() as u32 + 8);
+            BinaryWriter::write_tlv_type(storage, self.tlv_type);
+            BinaryWriter::write_bytes(storage, &tlv_group_data);
+        } else {
+            match meta_type {
+                MetaType::Bool => {
+                    BinaryWriter::write_dword(storage, 1 + 8); // Length
+                    BinaryWriter::write_tlv_type(storage, self.tlv_type); // Type
+                    BinaryWriter::write_bool(storage, self.value_as_bool()); //Value
+                }
+                MetaType::Uint => {
+                    BinaryWriter::write_dword(storage, 4 + 8);
+                    BinaryWriter::write_tlv_type(storage, self.tlv_type);
+                    BinaryWriter::write_dword(storage, self.value_as_uint32());
+                }
+                MetaType::Qword => {
+                    BinaryWriter::write_dword(storage, 8 + 8);
+                    BinaryWriter::write_tlv_type(storage, self.tlv_type);
+                    BinaryWriter::write_qword(storage, self.value_as_uint64());
+                }
+                MetaType::String => {
+                    let value = self.value_as_string();
+                    BinaryWriter::write_dword(storage, value.len() as u32 + 1 + 8);
+                    BinaryWriter::write_tlv_type(storage, self.tlv_type);
+                    BinaryWriter::write_string(storage, value);
+                }
+                MetaType::Raw | MetaType::Complex => {
+                    let value = self.value_as_bytes();
+                    BinaryWriter::write_dword(storage, value.len() as u32 + 8);
+                    BinaryWriter::write_tlv_type(storage, self.tlv_type);
+                    BinaryWriter::write_bytes(storage, value);
+                }
+                MetaType::None | MetaType::Compressed => {
+                    panic!("Compressed or None MetaType Not Supported")
+                }
+                _ => panic!("Unexpected MetaType {:?}", meta_type),
+            }
+        }
     }
 
-    fn validate_meta_type(&self, expected_types: Vec<MetaType>){
+    fn validate_meta_type(&self, expected_types: Vec<MetaType>) {
         if !expected_types.contains(&self.tlv_type.to_meta_type()) {
-            panic!("Expecting MetaType {:?} but provided type {:?}", expected_types, &self.tlv_type);
+            panic!(
+                "Expecting MetaType {:?} but provided type {:?}",
+                expected_types, &self.tlv_type
+            );
         }
     }
 
     pub fn value_as_string(&self) -> String {
-        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+        match self
+            .value
+            .as_ref()
+            .expect("Unable to extract value from a TLV")
+        {
             TlvValue::String(val) => val.to_string(),
-            _ => panic!("Didn't find expected type") 
+            _ => panic!("Didn't find expected type"),
         }
     }
 
     pub fn value_as_bool(&self) -> bool {
-        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+        match self
+            .value
+            .as_ref()
+            .expect("Unable to extract value from a TLV")
+        {
             TlvValue::Bool(val) => val.to_owned(),
-            _ => panic!("Didn't find expected type") 
-        }       
+            _ => panic!("Didn't find expected type"),
+        }
     }
 
     pub fn value_as_uint32(&self) -> u32 {
-        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+        match self
+            .value
+            .as_ref()
+            .expect("Unable to extract value from a TLV")
+        {
             TlvValue::UInt(val) => val.to_owned(),
-            _ => panic!("Didn't find expected type") 
-        }       
+            _ => panic!("Didn't find expected type"),
+        }
     }
 
     pub fn value_as_uint64(&self) -> u64 {
-        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+        match self
+            .value
+            .as_ref()
+            .expect("Unable to extract value from a TLV")
+        {
             TlvValue::ULongInt(val) => val.to_owned(),
-            _ => panic!("Didn't find expected type") 
-        }       
+            _ => panic!("Didn't find expected type"),
+        }
     }
 
     pub fn value_as_bytes(&self) -> &Box<[u8]> {
-        match self.value.as_ref().expect("Unable to extract value from a TLV") {
+        match self
+            .value
+            .as_ref()
+            .expect("Unable to extract value from a TLV")
+        {
             TlvValue::Bytes(val) => val,
-            _ => panic!("Didn't find expected type") 
-        }       
+            _ => panic!("Didn't find expected type"),
+        }
     }
-    
 }
 //TODO: pass byte array by reference or boxed
 //TODO: metatype validation
@@ -306,24 +375,30 @@ impl Add for Tlv {
     }
 }
 
+//TODO: better grouping of tests
 #[cfg(test)]
 mod test {
+    use crate::tlv::{MetaType, Tlv, TlvType, TlvValue};
     use std::collections::HashMap;
-    use crate::tlv::{TlvType, MetaType, TlvValue, Tlv};
 
     use super::Add;
-
 
     #[test]
     fn test_tlvtype_to_metatype() {
         assert_eq!(TlvType::Any.to_meta_type(), MetaType::None);
         assert_eq!(TlvType::Method.to_meta_type(), MetaType::String);
-        assert_eq!(TlvType::StdapiMountSpaceTotal.to_meta_type(), MetaType::Qword);
+        assert_eq!(
+            TlvType::StdapiMountSpaceTotal.to_meta_type(),
+            MetaType::Qword
+        );
     }
 
     #[test]
     fn test_value_as_string() {
-        let tlv = Tlv::new(TlvType::ChannelType, TlvValue::String(String::from("OneWay")));
+        let tlv = Tlv::new(
+            TlvType::ChannelType,
+            TlvValue::String(String::from("OneWay")),
+        );
         assert_eq!(tlv.value_as_string(), "OneWay");
     }
 
@@ -335,7 +410,10 @@ mod test {
 
     #[test]
     fn test_value_as_uint64() {
-        let tlv = Tlv::new(TlvType::StdapiMountSpaceFree, TlvValue::ULongInt(624636823236762));
+        let tlv = Tlv::new(
+            TlvType::StdapiMountSpaceFree,
+            TlvValue::ULongInt(624636823236762),
+        );
         assert_eq!(tlv.value_as_uint64(), 624636823236762);
     }
 
@@ -347,7 +425,10 @@ mod test {
 
     #[test]
     fn test_value_as_bytes() {
-        let tlv = Tlv::new(TlvType::ChannelData, TlvValue::Bytes(Box::new([35, 67, 0, 255])));
+        let tlv = Tlv::new(
+            TlvType::ChannelData,
+            TlvValue::Bytes(Box::new([35, 67, 0, 255])),
+        );
         let byte_val = tlv.value_as_bytes().as_ref();
         assert_eq!(byte_val[0], 35);
         assert_eq!(byte_val[1], 67);
@@ -357,13 +438,97 @@ mod test {
 
     #[test]
     fn test_add() {
-        let mut tlv = Tlv { tlv_type : TlvType::StdapiMount, value: None, tlvs : HashMap::new() };
+        let mut tlv = Tlv {
+            tlv_type: TlvType::StdapiMount,
+            value: None,
+            tlvs: HashMap::new(),
+        };
         tlv.add_string(TlvType::StdapiMountName, String::from("/sdf"));
         tlv.add_uint32(TlvType::StdapiMountType, 2);
         tlv.add_uint64(TlvType::StdapiMountSpaceFree, 2614672732);
 
-        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountName).unwrap().first().unwrap().value_as_string(), "/sdf");
-        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountType).unwrap().first().unwrap().value_as_uint32(), 2);
-        assert_eq!(tlv.tlvs.get(&TlvType::StdapiMountSpaceFree).unwrap().first().unwrap().value_as_uint64(), 2614672732);
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::StdapiMountName)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_string(),
+            "/sdf"
+        );
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::StdapiMountType)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_uint32(),
+            2
+        );
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::StdapiMountSpaceFree)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_uint64(),
+            2614672732
+        );
+    }
+
+    #[test]
+    fn test_bool_tlv_to_raw() {
+        let tlv = Tlv::new(TlvType::StdapiProxyCfgAutodetect, TlvValue::Bool(true));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+        assert_eq!(storage.len(), 9);
+        assert!(storage == [0, 0, 0, 9, /**/ 0, 8, 5, 165, /**/ 1]);
+    }
+
+    #[test]
+    fn test_uint_tlv_to_raw() {
+        let tlv = Tlv::new(TlvType::ChannelId, TlvValue::UInt(2));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+        assert_eq!(storage.len(), 12);
+        assert!(storage == [0, 0, 0, 12, /**/ 0, 2, 0, 50, /**/ 0, 0, 0, 2]);
+    }
+
+    #[test]
+    fn test_qword_tlv_to_raw() {
+        let tlv = Tlv::new(TlvType::StdapiMountSpaceFree, TlvValue::ULongInt(65535));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+        assert_eq!(storage.len(), 16);
+        assert!(storage == [0, 0, 0, 16, /**/ 0, 16, 4, 188, /**/ 0, 0, 0, 0, 0, 0, 255, 255]);
+    }
+
+    #[test]
+    fn test_string_tlv_to_raw() {
+        let tlv = Tlv::new(TlvType::ChannelType, TlvValue::String("duplex".to_owned()));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+        assert_eq!(storage.len(), 15);
+        assert!(storage == [0, 0, 0, 15, /**/ 0, 1, 0, 51, /**/ 100, 117, 112, 108, 101, 120, 0]);
+    }
+
+    #[test]
+    fn test_bytes_tlv_to_raw() {
+        let tlv = Tlv::new(
+            TlvType::TransCertHash,
+            TlvValue::Bytes(Box::new([89, 77, 22, 23, 45])),
+        );
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+        assert_eq!(storage.len(), 13);
+        assert!(storage == [0, 0, 0, 13, /**/ 0, 4, 1, 179, /**/ 89, 77, 22, 23, 45]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_any_tlv_to_raw() {
+        let tlv = Tlv::new(TlvType::Any, TlvValue::Bool(false));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
     }
 }

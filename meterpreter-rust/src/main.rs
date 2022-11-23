@@ -1,5 +1,5 @@
-pub mod tlv;
 pub mod packet;
+pub mod tlv;
 
 fn main() {
     use tlv::MetaType;

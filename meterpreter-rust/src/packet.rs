@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::tlv::{Tlv, TlvType, TlvValue, Add };
+use crate::tlv::{Add, Tlv, TlvType, TlvValue};
 
 use uuid::Uuid;
-
 
 #[repr(u32)]
 pub enum PacketResult {
@@ -21,23 +20,23 @@ pub enum PacketType {
     Request = 0,
     Response = 1,
     PlainRequest = 10,
-    PlainResponse = 11
+    PlainResponse = 11,
 }
 
 pub struct Packet {
-    packet_type : PacketType,
-    tlvs : HashMap<TlvType, Vec<Tlv>>
+    packet_type: PacketType,
+    tlvs: HashMap<TlvType, Vec<Tlv>>,
 }
 
 impl Packet {
-    pub const HEADER_SIZE : u32 = 4 + 16 + 4 + 4 + 4;
-    const ENC_LENGTH : u32 = 20;
-    const OFFSET_LENGTH : u32 = 24;
+    pub const HEADER_SIZE: u32 = 4 + 16 + 4 + 4 + 4;
+    const ENC_LENGTH: u32 = 20;
+    const OFFSET_LENGTH: u32 = 24;
 
     fn new(method: String) -> Packet {
         let mut instance = Self {
-            packet_type : PacketType::Request,
-            tlvs: HashMap::new()
+            packet_type: PacketType::Request,
+            tlvs: HashMap::new(),
         };
 
         instance.set_method(method);
@@ -46,11 +45,11 @@ impl Packet {
         instance
     }
 
-    fn from_raw(&self){
+    fn from_raw(&self) {
         unimplemented!()
     }
 
-    fn to_raw(&self){
+    fn to_raw(&self) {
         unimplemented!()
     }
 
@@ -59,7 +58,7 @@ impl Packet {
         tlv.value_as_string()
     }
 
-    fn set_request_id(&mut self, request_id : String) {
+    fn set_request_id(&mut self, request_id: String) {
         self.tlvs.remove(&TlvType::RequestId);
         self.add_string(TlvType::RequestId, request_id);
     }
@@ -69,7 +68,7 @@ impl Packet {
         tlv.value_as_string()
     }
 
-    fn set_method(&mut self, method : String) {
+    fn set_method(&mut self, method: String) {
         self.tlvs.remove(&TlvType::Method);
         self.add_string(TlvType::Method, method);
     }
@@ -77,7 +76,7 @@ impl Packet {
     pub fn get_result(&self) -> PacketResult {
         let tlv = self.get_tlv(TlvType::Result);
         let num_val = tlv.value_as_uint32();
-        let packet_result : PacketResult = unsafe { ::std::mem::transmute(num_val) };
+        let packet_result: PacketResult = unsafe { ::std::mem::transmute(num_val) };
         packet_result
     }
 
@@ -92,10 +91,14 @@ impl Packet {
     }
 
     pub fn create_response(&self) -> Packet {
-        let packet_type = if self.packet_type == PacketType::Request { PacketType::Response } else { PacketType::PlainResponse};
+        let packet_type = if self.packet_type == PacketType::Request {
+            PacketType::Response
+        } else {
+            PacketType::PlainResponse
+        };
         let mut response = Self {
-            packet_type : packet_type,
-            tlvs: HashMap::new()
+            packet_type: packet_type,
+            tlvs: HashMap::new(),
         };
 
         response.set_request_id(self.get_request_id());
@@ -103,11 +106,9 @@ impl Packet {
 
         response
     }
-
 }
 
 impl Add for Packet {
-
     fn add_string(&mut self, tlv_type: TlvType, value: String) {
         let tlv = Tlv::new(tlv_type, TlvValue::String(value));
         self.add_tlv(tlv);
@@ -142,7 +143,6 @@ impl Add for Packet {
         self.add_tlv(tlv);
     }
 
-
     fn add_tlv(&mut self, tlv: Tlv) {
         if let Some(tlv_list) = self.tlvs.get_mut(&tlv.tlv_type) {
             tlv_list.push(tlv);
@@ -154,10 +154,13 @@ impl Add for Packet {
 
 #[cfg(test)]
 mod test {
-    use crate::{tlv::{TlvType}, packet::{Packet, PacketType}};
+    use crate::{
+        packet::{Packet, PacketType},
+        tlv::TlvType,
+    };
 
     use super::Add;
- 
+
     #[test]
     fn test_empty_packet() {
         let packet = Packet::new(String::from("core_channel_close"));
@@ -173,9 +176,37 @@ mod test {
         packet.add_uint32(TlvType::ChannelId, 2);
         packet.add_bytes(TlvType::ChannelData, Box::new([3, 5, 8, 9]));
 
-        assert_eq!(packet.tlvs.get(&TlvType::ChannelType).unwrap().first().unwrap().value_as_string(), "unidirectional");
-        assert_eq!(packet.tlvs.get(&TlvType::ChannelId).unwrap().first().unwrap().value_as_uint32(), 2);
-        assert_eq!(packet.tlvs.get(&TlvType::ChannelData).unwrap().first().unwrap().value_as_bytes().as_ref(), [3, 5, 8, 9]);
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::ChannelType)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_string(),
+            "unidirectional"
+        );
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::ChannelId)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_uint32(),
+            2
+        );
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::ChannelData)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value_as_bytes()
+                .as_ref(),
+            [3, 5, 8, 9]
+        );
     }
 
     #[test]
@@ -183,7 +214,10 @@ mod test {
         let request_packet = Packet::new(String::from("core_channel_open"));
         let response_packet = request_packet.create_response();
 
-        assert_eq!(response_packet.get_request_id(), request_packet.get_request_id());
+        assert_eq!(
+            response_packet.get_request_id(),
+            request_packet.get_request_id()
+        );
         assert_eq!(response_packet.get_method(), request_packet.get_method());
         assert_eq!(response_packet.packet_type, PacketType::Response);
     }
