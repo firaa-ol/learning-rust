@@ -1,6 +1,7 @@
+use rand::Rng;
 use std::collections::HashMap;
 
-use crate::tlv::{Add, Tlv, TlvType, TlvValue};
+use crate::tlv::{Add, BinaryWriter, Tlv, TlvType, TlvValue};
 
 use uuid::Uuid;
 
@@ -14,7 +15,7 @@ pub enum PacketResult {
     ErrorAlreadyExists = 183,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 #[repr(u32)]
 pub enum PacketType {
     Request = 0,
@@ -49,8 +50,26 @@ impl Packet {
         unimplemented!()
     }
 
-    fn to_raw(&self) {
-        unimplemented!()
+    pub fn to_raw(&self, session_guid: &[u8]) -> Vec<u8> {
+        let mut tlv_data: Vec<u8> = vec![];
+        for tlv in self.tlvs.values().flatten() {
+            tlv.to_raw(&mut tlv_data);
+        }
+        //TODO: encrypt tlv_data
+        let mut packet_data: Vec<u8> = vec![];
+        BinaryWriter::write_dword(&mut packet_data, 0); //XOR key, will be filled later
+
+        BinaryWriter::write_bytes(&mut packet_data, session_guid);
+        //TODO: replace encryption flag by an enum
+        BinaryWriter::write_dword(&mut packet_data, 0); // Encryption flag - 0 -> None
+        BinaryWriter::write_dword(&mut packet_data, tlv_data.len() as u32 + 8); // tlv Length + packetType + packetLength field
+        BinaryWriter::write_packet_type(&mut packet_data, self.packet_type);
+        BinaryWriter::write_bytes(&mut packet_data, &tlv_data);
+
+        let xor_key = Packet::generate_xor_key();
+        Packet::xor(&mut packet_data, xor_key);
+
+        packet_data
     }
 
     pub fn get_request_id(&self) -> String {
@@ -106,6 +125,17 @@ impl Packet {
 
         response
     }
+
+    fn generate_xor_key() -> [u8; 4] {
+        let random_bytes = rand::thread_rng().gen::<[u8; 4]>();
+        return random_bytes;
+    }
+
+    fn xor(target: &mut Vec<u8>, xor_key: [u8; 4]) {
+        for i in 0..target.len() {
+            target[i] = target[i] ^ xor_key[i % xor_key.len()];
+        }
+    }
 }
 
 impl Add for Packet {
@@ -154,6 +184,8 @@ impl Add for Packet {
 
 #[cfg(test)]
 mod test {
+    use std::os::linux::raw;
+
     use crate::{
         packet::{Packet, PacketType},
         tlv::TlvType,
@@ -220,5 +252,30 @@ mod test {
         );
         assert_eq!(response_packet.get_method(), request_packet.get_method());
         assert_eq!(response_packet.packet_type, PacketType::Response);
+    }
+
+    #[test]
+    fn test_packet_to_raw() {
+        let request_packet = Packet::new(String::from("core_channel_open"));
+        let mut response_packet = request_packet.create_response();
+        response_packet.add_bool(TlvType::StdapiProxyCfgAutodetect, true);
+        response_packet.add_uint32(TlvType::ChannelId, 2);
+        response_packet.add_uint64(TlvType::StdapiMountSpaceFree, 65535);
+        response_packet.add_string(TlvType::ChannelType, "duplex".to_owned());
+
+        let session_guid = [0; 16];
+        let mut raw_data = response_packet.to_raw(&session_guid);
+
+        println!("before decryption: {:?}", raw_data);
+        //xor decrypt
+        let xor_key = raw_data[0..4].try_into().unwrap();
+        Packet::xor(&mut raw_data, xor_key);
+
+        println!("after decryption: {:?}", raw_data);
+
+        assert_eq!(raw_data[0..4], [0; 4]); // xor_key xored with itself
+        assert_eq!(raw_data[4..20], [0; 16]); // session guid
+        assert_eq!(raw_data[20..24], [0; 4]); // encryption flag
+        assert_eq!(raw_data[28..32], [0, 0, 0, 1]) // packet type - response = 1
     }
 }

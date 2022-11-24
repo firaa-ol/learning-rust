@@ -5,7 +5,7 @@ mod binary_writer;
 
 pub use add::Add;
 
-use self::binary_writer::BinaryWriter;
+pub use self::binary_writer::BinaryWriter;
 
 #[derive(Debug, PartialEq)]
 #[repr(u32)]
@@ -211,7 +211,7 @@ impl Tlv {
         unimplemented!()
     }
 
-    fn to_raw(&self, storage: &mut Vec<u8>) {
+    pub fn to_raw(&self, storage: &mut Vec<u8>) {
         let meta_type = self.tlv_type.to_meta_type();
         if meta_type == MetaType::Group {
             let mut tlv_group_data: Vec<u8> = vec![];
