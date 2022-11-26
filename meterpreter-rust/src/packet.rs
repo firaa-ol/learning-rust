@@ -1,7 +1,7 @@
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::tlv::{Add, BinaryWriter, Tlv, TlvType, TlvValue};
+use crate::tlv::{Add, BinaryReader, BinaryWriter, Tlv, TlvType, TlvValue};
 
 use uuid::Uuid;
 
@@ -31,15 +31,15 @@ impl From<u32> for PacketType {
     }
 }
 
+#[derive(Debug)]
 pub struct Packet {
     packet_type: PacketType,
     tlvs: HashMap<TlvType, Vec<Tlv>>,
 }
 
 impl Packet {
-    pub const HEADER_SIZE: u32 = 4 + 16 + 4 + 4 + 4;
+    pub const HEADER_SIZE: u32 = 4 + 16 + 4 + 4 + 4; // XOR Key + SESSION GUID + ENCRYPTION FLAG + Packet Body Length + Packet Type
     const ENC_LENGTH: u32 = 20;
-    const OFFSET_LENGTH: u32 = 24;
 
     fn new(method: String) -> Packet {
         let mut instance = Self {
@@ -53,8 +53,43 @@ impl Packet {
         instance
     }
 
-    fn from_raw(&self) {
-        unimplemented!()
+    pub fn from_raw(storage: &Vec<u8>, position: &mut usize) -> Self {
+        let mut header = BinaryReader::read_bytes(storage, position, Packet::HEADER_SIZE);
+        let mut xor_key = [0; 4];
+        header
+            .iter()
+            .take(4)
+            .enumerate()
+            .for_each(|(index, elt)| xor_key[index] = *elt);
+
+        Packet::xor(&mut header, xor_key);
+
+        // Move to encryption flags
+        let mut header_position = Packet::ENC_LENGTH as usize;
+        let encryption_flag = BinaryReader::read_dword(&header, &mut header_position);
+        let tlv_bytes_length = BinaryReader::read_dword(&header, &mut header_position) - 8; // tlv bytes length + packe type + packet length
+        let packet_type = BinaryReader::read_packet_type(&header, &mut header_position);
+
+        *position = Packet::HEADER_SIZE as usize;
+        let mut packet_body = BinaryReader::read_bytes(storage, position, tlv_bytes_length);
+        let encrypted = encryption_flag == 1; //TODO: turn this to an enum when implementing encryption
+
+        Packet::xor(&mut packet_body, xor_key);
+
+        if encrypted {
+            panic!("Encryption is not implemented");
+        }
+
+        let mut packet = Packet {
+            packet_type,
+            tlvs: HashMap::new(),
+        };
+        let mut body_position = 0;
+        while body_position < packet_body.len() {
+            packet.add_tlv(Tlv::from_raw(&packet_body, &mut body_position))
+        }
+
+        packet
     }
 
     pub fn to_raw(&self, session_guid: &[u8]) -> Vec<u8> {
@@ -191,11 +226,9 @@ impl Add for Packet {
 
 #[cfg(test)]
 mod test {
-    use std::os::linux::raw;
-
     use crate::{
         packet::{Packet, PacketType},
-        tlv::TlvType,
+        tlv::{TlvType, TlvValue},
     };
 
     use super::Add;
@@ -284,5 +317,74 @@ mod test {
         assert_eq!(raw_data[4..20], [0; 16]); // session guid
         assert_eq!(raw_data[20..24], [0; 4]); // encryption flag
         assert_eq!(raw_data[28..32], [0, 0, 0, 1]) // packet type - response = 1
+    }
+
+    #[test]
+    fn test_from_raw_to_packet() {
+        let request_packet = Packet::new(String::from("core_channel_open"));
+        let mut response_packet = request_packet.create_response();
+        response_packet.add_bool(TlvType::StdapiProxyCfgAutodetect, true);
+        response_packet.add_uint32(TlvType::ChannelId, 2);
+        response_packet.add_uint64(TlvType::StdapiMountSpaceFree, 65535);
+        response_packet.add_string(TlvType::ChannelType, "duplex".to_owned());
+
+        let session_guid = [0; 16];
+        let raw_data = response_packet.to_raw(&session_guid);
+
+        let mut position = 0;
+        let packet = Packet::from_raw(&raw_data, &mut position);
+
+        assert_eq!(packet.packet_type, PacketType::Response);
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::StdapiProxyCfgAutodetect)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::Bool(true)
+        );
+
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::ChannelId)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::UInt(2)
+        );
+
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::StdapiMountSpaceFree)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::ULongInt(65535)
+        );
+
+        assert_eq!(
+            packet
+                .tlvs
+                .get(&TlvType::ChannelType)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::String("duplex".to_string())
+        );
     }
 }

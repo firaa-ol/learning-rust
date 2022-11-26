@@ -203,6 +203,7 @@ pub enum TlvValue {
     Bytes(Vec<u8>),
 }
 
+#[derive(Debug)]
 pub struct Tlv {
     pub value: Option<TlvValue>,
     pub tlv_type: TlvType,
