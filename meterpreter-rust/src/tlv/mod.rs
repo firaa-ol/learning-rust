@@ -2,10 +2,12 @@ use std::collections::HashMap;
 
 mod add;
 mod binary_writer;
+mod binary_reader;
 
 pub use add::Add;
 
 pub use self::binary_writer::BinaryWriter;
+pub use self::binary_reader::BinaryReader;
 
 #[derive(Debug, PartialEq)]
 #[repr(u32)]
@@ -189,7 +191,7 @@ pub enum TlvValue {
     UInt(u32),
     ULongInt(u64),
     String(String),
-    Bytes(Box<[u8]>),
+    Bytes(Vec<u8>),
 }
 
 pub struct Tlv {
@@ -312,7 +314,7 @@ impl Tlv {
         }
     }
 
-    pub fn value_as_bytes(&self) -> &Box<[u8]> {
+    pub fn value_as_bytes(&self) -> &Vec<u8> {
         match self
             .value
             .as_ref()
@@ -350,7 +352,7 @@ impl Add for Tlv {
         self.add_tlv(tlv);
     }
 
-    fn add_bytes(&mut self, tlv_type: TlvType, value: Box<[u8]>) {
+    fn add_bytes(&mut self, tlv_type: TlvType, value: Vec<u8>) {
         self.validate_meta_type(vec![MetaType::Group]);
         let tlv = Tlv::new(tlv_type, TlvValue::Bytes(value));
         self.add_tlv(tlv);
@@ -427,9 +429,9 @@ mod test {
     fn test_value_as_bytes() {
         let tlv = Tlv::new(
             TlvType::ChannelData,
-            TlvValue::Bytes(Box::new([35, 67, 0, 255])),
+            TlvValue::Bytes(vec![35, 67, 0, 255]),
         );
-        let byte_val = tlv.value_as_bytes().as_ref();
+        let byte_val = tlv.value_as_bytes();
         assert_eq!(byte_val[0], 35);
         assert_eq!(byte_val[1], 67);
         assert_eq!(byte_val[2], 0);
@@ -516,7 +518,7 @@ mod test {
     fn test_bytes_tlv_to_raw() {
         let tlv = Tlv::new(
             TlvType::TransCertHash,
-            TlvValue::Bytes(Box::new([89, 77, 22, 23, 45])),
+            TlvValue::Bytes(vec![89, 77, 22, 23, 45]),
         );
         let mut storage: Vec<u8> = vec![];
         tlv.to_raw(&mut storage);

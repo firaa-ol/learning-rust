@@ -159,7 +159,7 @@ impl Add for Packet {
         self.add_tlv(tlv);
     }
 
-    fn add_bytes(&mut self, tlv_type: TlvType, value: Box<[u8]>) {
+    fn add_bytes(&mut self, tlv_type: TlvType, value: Vec<u8>) {
         let tlv = Tlv::new(tlv_type, TlvValue::Bytes(value));
         self.add_tlv(tlv);
     }
@@ -206,7 +206,7 @@ mod test {
         let mut packet = Packet::new(String::from("core_channel_open"));
         packet.add_string(TlvType::ChannelType, String::from("unidirectional"));
         packet.add_uint32(TlvType::ChannelId, 2);
-        packet.add_bytes(TlvType::ChannelData, Box::new([3, 5, 8, 9]));
+        packet.add_bytes(TlvType::ChannelData, vec![3, 5, 8, 9]);
 
         assert_eq!(
             packet
