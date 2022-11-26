@@ -1,13 +1,14 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 
 mod add;
-mod binary_writer;
 mod binary_reader;
+mod binary_writer;
 
 pub use add::Add;
 
-pub use self::binary_writer::BinaryWriter;
 pub use self::binary_reader::BinaryReader;
+pub use self::binary_writer::BinaryWriter;
 
 #[derive(Debug, PartialEq)]
 #[repr(u32)]
@@ -186,6 +187,14 @@ impl TlvType {
     }
 }
 
+impl From<u32> for TlvType {
+    fn from(val: u32) -> Self {
+        let tlv_type: TlvType = unsafe { ::std::mem::transmute(val) };
+        tlv_type
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
 pub enum TlvValue {
     Bool(bool),
     UInt(u32),
@@ -209,8 +218,51 @@ impl Tlv {
         }
     }
 
-    fn from_raw(&self) {
-        unimplemented!()
+    pub fn from_raw(storage: &Vec<u8>, position: &mut usize) -> Self {
+        let length = BinaryReader::read_dword(storage, position) - 8;
+        let tlv_type = BinaryReader::read_tlv_type(storage, position);
+        let meta_type = tlv_type.to_meta_type();
+        let mut tlv = Self {
+            tlv_type,
+            value: None,
+            tlvs: HashMap::new(),
+        };
+
+        if meta_type == MetaType::Group {
+            while *position < storage.len() {
+                tlv.add_tlv(Tlv::from_raw(storage, position))
+            }
+        } else {
+            match meta_type {
+                MetaType::Bool => {
+                    tlv.value = Some(TlvValue::Bool(BinaryReader::read_bool(storage, position)));
+                }
+                MetaType::Uint => {
+                    tlv.value = Some(TlvValue::UInt(BinaryReader::read_dword(storage, position)));
+                }
+                MetaType::Qword => {
+                    tlv.value = Some(TlvValue::ULongInt(BinaryReader::read_qword(
+                        storage, position,
+                    )));
+                }
+                MetaType::String => {
+                    tlv.value = Some(TlvValue::String(BinaryReader::read_string(
+                        storage, position, length,
+                    )));
+                }
+                MetaType::Raw | MetaType::Complex => {
+                    tlv.value = Some(TlvValue::Bytes(BinaryReader::read_bytes(
+                        storage, position, length,
+                    )))
+                }
+                MetaType::None | MetaType::Compressed => {
+                    panic!("Compressed or None MetaType Not Supported")
+                }
+                _ => panic!("Unexpected MetaType {:?}", meta_type),
+            }
+        }
+
+        tlv
     }
 
     pub fn to_raw(&self, storage: &mut Vec<u8>) {
@@ -427,10 +479,7 @@ mod test {
 
     #[test]
     fn test_value_as_bytes() {
-        let tlv = Tlv::new(
-            TlvType::ChannelData,
-            TlvValue::Bytes(vec![35, 67, 0, 255]),
-        );
+        let tlv = Tlv::new(TlvType::ChannelData, TlvValue::Bytes(vec![35, 67, 0, 255]));
         let byte_val = tlv.value_as_bytes();
         assert_eq!(byte_val[0], 35);
         assert_eq!(byte_val[1], 67);
@@ -532,5 +581,141 @@ mod test {
         let tlv = Tlv::new(TlvType::Any, TlvValue::Bool(false));
         let mut storage: Vec<u8> = vec![];
         tlv.to_raw(&mut storage);
+    }
+
+    #[test]
+    fn test_from_raw_to_bool_tlv() {
+        let tlv = Tlv::new(TlvType::StdapiProxyCfgAutodetect, TlvValue::Bool(true));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::StdapiProxyCfgAutodetect);
+        assert_eq!(tlv.value.unwrap(), TlvValue::Bool(true));
+    }
+
+    #[test]
+    fn test_from_raw_to_uint_tlv() {
+        let tlv = Tlv::new(TlvType::ChannelId, TlvValue::UInt(2));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::ChannelId);
+        assert_eq!(tlv.value.unwrap(), TlvValue::UInt(2));
+    }
+
+    #[test]
+    fn test_from_raw_to_qword_tlv() {
+        let tlv = Tlv::new(TlvType::StdapiMountSpaceFree, TlvValue::ULongInt(65535));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::StdapiMountSpaceFree);
+        assert_eq!(tlv.value.unwrap(), TlvValue::ULongInt(65535));
+    }
+
+    #[test]
+    fn test_from_raw_to_string_tlv() {
+        let tlv = Tlv::new(TlvType::ChannelType, TlvValue::String("duplex".to_owned()));
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::ChannelType);
+        assert_eq!(tlv.value.unwrap(), TlvValue::String("duplex".to_owned()));
+    }
+
+    #[test]
+    fn test_from_raw_to_bytes_tlv() {
+        let tlv = Tlv::new(
+            TlvType::TransCertHash,
+            TlvValue::Bytes(vec![89, 77, 22, 23, 45]),
+        );
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::TransCertHash);
+        assert_eq!(
+            tlv.value.unwrap(),
+            TlvValue::Bytes(vec![89, 77, 22, 23, 45])
+        );
+    }
+
+    #[test]
+    fn test_from_raw_to_group_tlv() {
+        let mut tlv = Tlv {
+            tlv_type: TlvType::TransGroup,
+            value: None,
+            tlvs: HashMap::new(),
+        };
+        tlv.add_uint32(TlvType::TransType, 3);
+        tlv.add_string(TlvType::TransUrl, "https://ch.rs".to_string());
+        tlv.add_bytes(TlvType::UUID, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        tlv.add_uint64(TlvType::StdapiMountSpaceFree, 65548);
+
+        let mut storage: Vec<u8> = vec![];
+        tlv.to_raw(&mut storage);
+
+        let mut position = 0;
+        let tlv = Tlv::from_raw(&storage, &mut position);
+
+        assert_eq!(tlv.tlv_type, TlvType::TransGroup);
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::TransType)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::UInt(3)
+        );
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::TransUrl)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::String("https://ch.rs".to_string())
+        );
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::UUID)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8])
+        );
+        assert_eq!(
+            tlv.tlvs
+                .get(&TlvType::StdapiMountSpaceFree)
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            &TlvValue::ULongInt(65548)
+        );
     }
 }

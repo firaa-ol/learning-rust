@@ -24,6 +24,13 @@ pub enum PacketType {
     PlainResponse = 11,
 }
 
+impl From<u32> for PacketType {
+    fn from(val: u32) -> Self {
+        let packet_type: PacketType = unsafe { ::std::mem::transmute(val) };
+        packet_type
+    }
+}
+
 pub struct Packet {
     packet_type: PacketType,
     tlvs: HashMap<TlvType, Vec<Tlv>>,
