@@ -433,7 +433,7 @@ impl Add for Tlv {
 //TODO: better grouping of tests
 #[cfg(test)]
 mod test {
-    use crate::tlv::{MetaType, Tlv, TlvType, TlvValue};
+    use crate::protocol::tlv::{MetaType, Tlv, TlvType, TlvValue};
     use std::collections::HashMap;
 
     use super::Add;

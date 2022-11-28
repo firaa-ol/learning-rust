@@ -1,8 +1,7 @@
-pub mod packet;
-pub mod tlv;
+pub mod protocol;
 
 fn main() {
-    use tlv::MetaType;
+    use protocol::tlv::MetaType;
 
     println!("{:?}", MetaType::String);
 }

@@ -1,7 +1,7 @@
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::tlv::{Add, BinaryReader, BinaryWriter, Tlv, TlvType, TlvValue};
+use crate::protocol::tlv::{Add, BinaryReader, BinaryWriter, Tlv, TlvType, TlvValue};
 
 use uuid::Uuid;
 
@@ -227,8 +227,8 @@ impl Add for Packet {
 #[cfg(test)]
 mod test {
     use crate::{
-        packet::{Packet, PacketType},
-        tlv::{TlvType, TlvValue},
+        protocol::packet::{Packet, PacketType},
+        protocol::tlv::{TlvType, TlvValue},
     };
 
     use super::Add;

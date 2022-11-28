@@ -1,4 +1,4 @@
-use crate::packet::PacketType;
+use crate::protocol::packet::PacketType;
 
 use super::TlvType;
 

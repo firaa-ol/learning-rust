@@ -1,4 +1,4 @@
-use crate::tlv::{Tlv, TlvType};
+use crate::protocol::tlv::{Tlv, TlvType};
 pub trait Add {
     fn add_string(&mut self, tlv_type: TlvType, value: String);
     fn add_uint32(&mut self, tlv_type: TlvType, value: u32);
