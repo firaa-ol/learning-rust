@@ -1,9 +1,14 @@
 use simple_exercises::*;
 use std::io::{stdin, stdout, Write};
+
+mod merkle_root;
+use crate::merkle_root::compute_merkle_root;
+
 fn main() {
     println!("List of programs you can run. ");
     println!("1. Circle Area Calculator");
     println!("2. Quadratic Equation Solver");
+    println!("3. Compute Merkle Root");
 
     print!("Input the number of the program you want to run : ");
     stdout().flush().unwrap();
@@ -15,6 +20,7 @@ fn main() {
     match selected_num {
         1 => compute_circle_area(),
         2 => solve_quadratic_equation(),
+        3 => compute_merkle_root(),
         _ => println!("Inavlid input, Please input a number in the list!"),
     }
 }
