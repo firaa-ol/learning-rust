@@ -17,31 +17,23 @@ impl<T: Display + Clone> SinglyLinkedList<T> {
 
     // push to the front of the list
     fn push(&mut self, elt: T) {
-        if self.start.is_none() {
-            self.start = Some(Box::new(Node {
-                value: elt,
-                next: None,
-            }));
-        } else {
-            let new_node = Some(Box::new(Node {
-                value: elt,
-                next: self.start.take(),
-            }));
-            self.start = new_node;
-        }
+        self.start = Some(Box::new(Node {
+            value: elt,
+            next: self.start.take(),
+        }));
         self.size += 1;
     }
 
     // pop from the front of the list
     fn pop(&mut self) -> Option<T> {
-        if self.start.is_none() {
-            None
-        } else {
-            let val = self.start.as_ref().unwrap().value.clone();
-            self.start = self.start.as_mut().unwrap().next.take();
+        if self.size > 0 {
             self.size -= 1;
-            Some(val)
         }
+
+        self.start.take().map(|node| {
+            self.start = node.next;
+            node.value
+        })
     }
 
     // add at the end of the list
@@ -190,6 +182,16 @@ impl<T: Display + Clone> SinglyLinkedList<T> {
     fn iter_mut(&mut self) -> NodeIterMut<'_, T> {
         NodeIterMut {
             next: self.start.as_deref_mut(),
+        }
+    }
+}
+
+impl<T: Display + Clone> Drop for SinglyLinkedList<T> {
+    fn drop(&mut self) {
+        let mut node = self.start.take();
+
+        while let Some(mut inside_node) = node {
+            node = inside_node.next.take();
         }
     }
 }
